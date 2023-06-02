@@ -24,6 +24,33 @@ cursor.execute('''
 ''')
 conn.commit()
 
+@app.route('/search', methods=['GET'])
+def search_profiles():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    query = request.args.get('query')  # Get the search query from the URL parameter
+
+    # Perform the search operation based on the query
+    cursor.execute('SELECT * FROM NewUsers WHERE user_name LIKE ?', ('%' + query + '%',))
+    profiles = cursor.fetchall()
+
+    # Convert the profiles data into a list of dictionaries
+    profiles_data = []
+    for profile in profiles:
+        profile_data = {
+            'id': profile[0],
+            'email': profile[1],
+            'password': profile[2],
+            'date_of_birth': profile[3],
+            'country': profile[4],
+            'city': profile[5],
+            'user_name': profile[6]
+        }
+        profiles_data.append(profile_data)
+
+    # Return the profiles data as JSON response
+    return json.dumps(profiles_data)
+
 @app.route('/suggest', methods=['GET'])
 def get_user_names():
     conn = sqlite3.connect('NewUsers.db')
