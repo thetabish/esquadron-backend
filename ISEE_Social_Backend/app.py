@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, send_from_directory
+from flask import Flask, render_template, request, redirect, send_from_directory, send_file
 import sqlite3
 from flask_cors import CORS
 import json
@@ -21,8 +21,7 @@ cursor.execute('''
         date_of_birth TEXT,
         country TEXT,
         city TEXT,
-        user_name TEXT,
-        profile_picture TEXT
+        user_name TEXT
     )
 ''')
 conn.commit()
@@ -63,6 +62,7 @@ def upload_profile_picture():
             )
         ''')
         cursor.execute('INSERT INTO ProfilePictures (user_id, profile_picture) VALUES (?, ?)', (user_id, filename))
+        #cursor.execute('DELETE FROM ProfilePictures')
         conn.commit()
         conn.close()
 
@@ -72,14 +72,39 @@ def upload_profile_picture():
     return 'Method Not Allowed'
 
 
-@app.route('/profile-picture/<filename>')
-def serve_profile_picture(filename):
-    directory = os.path.abspath('assets')
-    return send_from_directory(directory, filename)
+
+
+@app.route('/profile-picture/<user_id>')
+def serve_profile_picture(user_id):
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT profile_picture FROM ProfilePictures WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+
+    if result:
+        filename = result[0]
+        directory = os.path.abspath('assets')
+        return send_from_directory(directory, filename)
+    else:
+        return 'Profile picture not found'
 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# @app.route('/profile-picture/<filename>')
+# def serve_profile_picture(filename):
+#     directory = os.path.abspath('assets')
+#     return send_from_directory(directory, filename)
+
+@app.route('/update-profile-picture/<filename>/<id>')
+def change_profile_picture(filename, id):
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT profile_picture FROM ProfilePictures WHERE user_id = ?', (id,))
+    result = cursor.fetchone()
+    directory = os.path.abspath('assets')
+    return send_from_directory(directory, filename)
+
 
 @app.route('/search', methods=['GET'])
 def search_profiles():
@@ -112,12 +137,12 @@ def search_profiles():
 def get_user_names():
     conn = sqlite3.connect('NewUsers.db')
     cursor = conn.cursor()
-    
+
     if request.method == 'GET':
         cursor.execute('SELECT user_name FROM NewUsers')
         user_names = [row[0] for row in cursor.fetchall()]
         return json.dumps(user_names)
-    
+
     return "Method Not Allowed"
 
 @app.route('/signin', methods=['POST'])
@@ -130,11 +155,11 @@ def signin():
         data = json.loads(payload)
         email = data.get('email')
         password = data.get('password')
-        
+
         # Check if the user exists in the database
         cursor.execute('SELECT * FROM NewUsers WHERE email = ? AND password = ?', (email, password))
         user = cursor.fetchone()
-        
+
         if user:
             # User exists, return "ok"
             user_data = {
@@ -151,7 +176,7 @@ def signin():
         else:
             # User does not exist or incorrect credentials
             return "Invalid email or password"
-    
+
     return "Method Not Allowed"
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -161,18 +186,18 @@ def signup():
     if request.method == 'POST':
         # Get the form data from the request
         payload = request.data.decode('utf-8')  # Decode the bytes to a string
-        data = json.loads(payload) 
+        data = json.loads(payload)
         email = data.get('email')
         password = data.get('password')
         date_of_birth = data.get('dateOfBirth')
         country = data.get('country')
         city = data.get('city')
         user_name = data.get('userName')
-        
+
         # Perform validation (add your validation logic here)
         if not email or not password or not date_of_birth or not country or not city or not user_name:
             return "Please fill in all the required fields"
-        
+
         # Save the user data to the database
         cursor.execute('INSERT INTO NewUsers (email, password, date_of_birth, country, city, user_name) VALUES (?, ?, ?, ?, ?, ?)', (email, password, date_of_birth, country, city, user_name))
         conn.commit()
@@ -201,7 +226,7 @@ def signup():
             return json.dumps({'user_id': user_id})
         else:
             print("Failed to insert data into the database.")
-    
+
     # Render the signup page template for GET requests
     return render_template('signup.html')
 
