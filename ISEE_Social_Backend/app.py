@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, send_from_directory
 import sqlite3
 from flask_cors import CORS
 import json
+from werkzeug.utils import secure_filename
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -19,10 +21,65 @@ cursor.execute('''
         date_of_birth TEXT,
         country TEXT,
         city TEXT,
-        user_name TEXT
+        user_name TEXT,
+        profile_picture TEXT
     )
 ''')
 conn.commit()
+ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+
+@app.route('/upload-profile-picture', methods=['POST'])
+def upload_profile_picture():
+    if request.method == 'POST':
+        # Check if the uploaded file is present in the request
+        if 'file' not in request.files:
+            return 'No file uploaded'
+
+        # Get the user ID from the request (you can modify this based on your frontend implementation)
+        user_id = request.form.get('user_id')
+
+        file = request.files['file']
+
+        # Check if a file with a valid extension is being uploaded
+        if file.filename == '':
+            return 'No file selected'
+
+        if not allowed_file(file.filename):
+            return 'Invalid file type'
+
+        # Generate a secure filename and save the file in the desired location
+        filename = secure_filename(file.filename)
+        file.save(os.path.join('assets', filename))
+
+        # Save the profile picture filename and user ID in the ProfilePictures table
+        conn = sqlite3.connect('NewUsers.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ProfilePictures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                profile_picture TEXT,
+                FOREIGN KEY (user_id) REFERENCES NewUsers (id)
+            )
+        ''')
+        cursor.execute('INSERT INTO ProfilePictures (user_id, profile_picture) VALUES (?, ?)', (user_id, filename))
+        conn.commit()
+        conn.close()
+
+        # Return a success message or redirect to another page
+        return filename
+
+    return 'Method Not Allowed'
+
+
+@app.route('/profile-picture/<filename>')
+def serve_profile_picture(filename):
+    directory = os.path.abspath('assets')
+    return send_from_directory(directory, filename)
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/search', methods=['GET'])
 def search_profiles():
