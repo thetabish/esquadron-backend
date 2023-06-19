@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, send_file, jsonify
+from flask import Flask,jsonify, render_template, request, redirect, send_from_directory, send_file
 import sqlite3
 from flask_cors import CORS
 import json
@@ -7,6 +7,13 @@ import os
 
 app = Flask(__name__)
 CORS(app)
+
+bio_data = {
+    'user_id':'-',
+    'relationshipStatus': '-',
+    'livesIn': '-',
+    'worksAt': '-'
+}
 
 # Connect to the SQLite database
 conn = sqlite3.connect('NewUsers.db')
@@ -24,25 +31,123 @@ cursor.execute('''
         user_name TEXT
     )
 ''')
+conn.commit()
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS Bio (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
-        relationship_status TEXT DEFAULT '-',
-        lives_in TEXT DEFAULT '-',
-        works_at TEXT DEFAULT '-',
-        FOREIGN KEY (user_id) REFERENCES NewUsers(id)
+        relationship_status TEXT,
+        lives_in TEXT,
+        works_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES NewUsers (id)
     )
 ''')
-
-
-# Commit the changes to the database
 conn.commit()
 
-
-conn.commit()
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+
+@app.route('/bio', methods=['POST'])
+def update_bio():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    payload = request.data.decode('utf-8')  # Decode the bytes to a string
+    data = json.loads(payload)
+    user_id = data.get('user_id')
+    data = request.get_json()
+    print("Received POST request with data:", data)
+    # Update the bio_data dictionary
+    bio_data['relationshipStatus'] = data['relationshipStatus']
+    bio_data['livesIn'] = data['livesIn']
+    bio_data['worksAt'] = data['worksAt']
+    print(user_id)
+    print("Updated bio data:", bio_data)
+
+    return jsonify(message='Bio data updated successfully')
+
+@app.route('/bio', methods=['GET'])
+def get_bio():
+    print("Received GET request for bio data")
+    return jsonify(bio_data)
+
+@app.route('/add-friend', methods=['POST'])
+def add_friend():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    if request.method == 'POST':
+        # Get the form data from the request
+        payload = request.data.decode('utf-8')  # Decode the bytes to a string
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+        friend_id = data.get('friend_id')
+
+        # Check if both user_id and friend_id exist
+        if not user_id or not friend_id:
+            return "Please provide user_id and friend_id"
+
+        # Create a new table to store the friends data
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Friends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                friend_id INTEGER,
+                FOREIGN KEY (user_id) REFERENCES NewUsers (id),
+                FOREIGN KEY (friend_id) REFERENCES NewUsers (id)
+            )
+        ''')
+        # Check if the friendship already exists
+        cursor.execute('SELECT * FROM Friends WHERE user_id = ? AND friend_id = ?', (user_id, friend_id))
+        friendship = cursor.fetchone()
+
+        if friendship:
+            # Friendship already exists
+            return "Friendship already exists"
+        else:
+            # Add the friendship to the Friends table
+            cursor.execute('INSERT INTO Friends (user_id, friend_id) VALUES (?, ?)', (user_id, friend_id))
+            conn.commit()
+            return "Friend added successfully"
+
+    return "Method Not Allowed"
+
+
+@app.route('/get-friends', methods=['POST'])
+def get_friends():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        # Get the user_id from the request
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+
+        # Check if the user_id exists
+        if not user_id:
+            return json.dump({'error': 'Please provide a valid user_id'})
+
+        # Get the friends of the user from the Friends table
+        cursor.execute('''
+            SELECT NewUsers.id, NewUsers.user_name
+            FROM Friends
+            INNER JOIN NewUsers ON Friends.friend_id = NewUsers.id
+            WHERE Friends.user_id = ?
+        ''', (user_id,))
+        friends = cursor.fetchall()
+
+        # Convert the friends data into a list of dictionaries
+        friends_data = []
+        for friend in friends:
+            friend_data = {
+                'id': friend[0],
+                'user_name': friend[1]
+            }
+            friends_data.append(friend_data)
+
+        # Return the friends data as JSON response
+        return (friends_data)
+
+    return json.dump({'error': 'Method Not Allowed'})
 
 @app.route('/upload-profile-picture', methods=['POST'])
 def upload_profile_picture():
@@ -196,55 +301,6 @@ def signin():
 
     return "Method Not Allowed"
 
-@app.route('/bio', methods=['GET'])
-def get_bio_data():
-    conn = sqlite3.connect('bio.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM Bio')
-    result = cursor.fetchone()
-    
-    if result:
-        bio_data = {
-            'relationshipStatus': result[2],
-            'livesIn': result[3],
-            'worksAt': result[4]
-        }
-    else:
-        bio_data = {
-            'relationshipStatus': '-',
-            'livesIn': '-',
-            'worksAt': '-'
-        }
-    
-    conn.close()
-    
-    return jsonify(bio_data)
-
-@app.route('/bio', methods=['POST'])
-def update_bio_data():
-    data = request.json
-    
-    relationship_status = data.get('relationshipStatus', '-')
-    lives_in = data.get('livesIn', '-')
-    works_at = data.get('worksAt', '-')
-    
-    conn = sqlite3.connect('bio.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM Bio')
-    result = cursor.fetchone()
-    
-    if result:
-        cursor.execute('UPDATE Bio SET relationship_status=?, lives_in=?, works_at=?', (relationship_status, lives_in, works_at))
-    else:
-        cursor.execute('INSERT INTO Bio (relationship_status, lives_in, works_at) VALUES (?, ?, ?)', (relationship_status, lives_in, works_at))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'message': 'Bio data updated successfully'})
-
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     conn = sqlite3.connect('NewUsers.db')
@@ -297,4 +353,4 @@ def signup():
     return render_template('signup.html')
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
