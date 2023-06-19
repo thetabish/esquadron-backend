@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, send_file
+from flask import Flask, render_template, request, redirect, send_from_directory, send_file, jsonify
 import sqlite3
 from flask_cors import CORS
 import json
@@ -24,6 +24,23 @@ cursor.execute('''
         user_name TEXT
     )
 ''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Bio (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        relationship_status TEXT DEFAULT '-',
+        lives_in TEXT DEFAULT '-',
+        works_at TEXT DEFAULT '-',
+        FOREIGN KEY (user_id) REFERENCES NewUsers(id)
+    )
+''')
+
+
+# Commit the changes to the database
+conn.commit()
+
+
 conn.commit()
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 
@@ -178,6 +195,55 @@ def signin():
             return "Invalid email or password"
 
     return "Method Not Allowed"
+
+@app.route('/bio', methods=['GET'])
+def get_bio_data():
+    conn = sqlite3.connect('bio.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM Bio')
+    result = cursor.fetchone()
+    
+    if result:
+        bio_data = {
+            'relationshipStatus': result[2],
+            'livesIn': result[3],
+            'worksAt': result[4]
+        }
+    else:
+        bio_data = {
+            'relationshipStatus': '-',
+            'livesIn': '-',
+            'worksAt': '-'
+        }
+    
+    conn.close()
+    
+    return jsonify(bio_data)
+
+@app.route('/bio', methods=['POST'])
+def update_bio_data():
+    data = request.json
+    
+    relationship_status = data.get('relationshipStatus', '-')
+    lives_in = data.get('livesIn', '-')
+    works_at = data.get('worksAt', '-')
+    
+    conn = sqlite3.connect('bio.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM Bio')
+    result = cursor.fetchone()
+    
+    if result:
+        cursor.execute('UPDATE Bio SET relationship_status=?, lives_in=?, works_at=?', (relationship_status, lives_in, works_at))
+    else:
+        cursor.execute('INSERT INTO Bio (relationship_status, lives_in, works_at) VALUES (?, ?, ?)', (relationship_status, lives_in, works_at))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'message': 'Bio data updated successfully'})
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
