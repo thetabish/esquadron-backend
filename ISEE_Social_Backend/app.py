@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, send_from_directory, send_file
+from flask import Flask,jsonify, render_template, request, redirect, send_from_directory, send_file
 import sqlite3
 from flask_cors import CORS
 import json
@@ -7,6 +7,13 @@ import os
 
 app = Flask(__name__)
 CORS(app)
+
+bio_data = {
+    'user_id':'-',
+    'relationshipStatus': '-',
+    'livesIn': '-',
+    'worksAt': '-'
+}
 
 # Connect to the SQLite database
 conn = sqlite3.connect('NewUsers.db')
@@ -25,7 +32,43 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Bio (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        relationship_status TEXT,
+        lives_in TEXT,
+        works_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES NewUsers (id)
+    )
+''')
+conn.commit()
+
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+
+@app.route('/bio', methods=['POST'])
+def update_bio():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+    payload = request.data.decode('utf-8')  # Decode the bytes to a string
+    data = json.loads(payload)
+    user_id = data.get('user_id')
+    data = request.get_json()
+    print("Received POST request with data:", data)
+    # Update the bio_data dictionary
+    bio_data['relationshipStatus'] = data['relationshipStatus']
+    bio_data['livesIn'] = data['livesIn']
+    bio_data['worksAt'] = data['worksAt']
+    print(user_id)
+    print("Updated bio data:", bio_data)
+
+    return jsonify(message='Bio data updated successfully')
+
+@app.route('/bio', methods=['GET'])
+def get_bio():
+    print("Received GET request for bio data")
+    return jsonify(bio_data)
 
 @app.route('/add-friend', methods=['POST'])
 def add_friend():
@@ -310,4 +353,4 @@ def signup():
     return render_template('signup.html')
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
