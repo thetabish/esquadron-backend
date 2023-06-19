@@ -51,10 +51,21 @@ def update_bio():
     rel = data.get('rel')
     loc = data.get('loc')
     work = data.get('work')
-    print("Received POST request with data:", data)
-    cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at) VALUES (?, ?, ?, ?)',(user_id, rel, loc, work))
-    conn.commit()
-    return "Bio data updated successfully"
+    
+    # Check if the user bio already exists
+    cursor.execute('SELECT * FROM Bio WHERE user_id = ?', (user_id,))
+    existing_bio = cursor.fetchone()
+    
+    if existing_bio:
+        # Update the existing user bio
+        cursor.execute('UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ? WHERE user_id = ?', (rel, loc, work, user_id))
+        conn.commit()
+        return "User bio updated successfully"
+    else:
+        # Insert a new user bio
+        cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at) VALUES (?, ?, ?, ?)', (user_id, rel, loc, work))
+        conn.commit()
+        return "User bio added successfully"
 
 @app.route('/bio', methods=['GET'])
 def get_bio():
