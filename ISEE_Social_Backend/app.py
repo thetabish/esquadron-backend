@@ -8,12 +8,6 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-bio_data = {
-    'user_id':'-',
-    'relationshipStatus': '-',
-    'livesIn': '-',
-    'worksAt': '-'
-}
 
 # Connect to the SQLite database
 conn = sqlite3.connect('NewUsers.db')
@@ -53,22 +47,43 @@ def update_bio():
     cursor = conn.cursor()
     payload = request.data.decode('utf-8')  # Decode the bytes to a string
     data = json.loads(payload)
-    user_id = data.get('user_id')
-    data = request.get_json()
+    user_id = data.get('id')
+    rel = data.get('rel')
+    loc = data.get('loc')
+    work = data.get('work')
     print("Received POST request with data:", data)
-    # Update the bio_data dictionary
-    bio_data['relationshipStatus'] = data['relationshipStatus']
-    bio_data['livesIn'] = data['livesIn']
-    bio_data['worksAt'] = data['worksAt']
-    print(user_id)
-    print("Updated bio data:", bio_data)
-
-    return jsonify(message='Bio data updated successfully')
+    cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at) VALUES (?, ?, ?, ?)',(user_id, rel, loc, work))
+    conn.commit()
+    return "Bio data updated successfully"
 
 @app.route('/bio', methods=['GET'])
 def get_bio():
-    print("Received GET request for bio data")
-    return jsonify(bio_data)
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    # Get the user_id from the request
+    user_id = request.args.get('user_id')
+
+    # Check if the user_id exists
+    if not user_id:
+        return "Please provide a valid user_id"
+
+    # Fetch the bio data for the given user_id
+    cursor.execute('SELECT * FROM Bio WHERE user_id = ?', (user_id,))
+    bio_data = cursor.fetchone()
+
+    if bio_data:
+        # Convert the bio data into a dictionary
+        bio = {
+            'user_id': bio_data[1],
+            'relationship_status': bio_data[2],
+            'lives_in': bio_data[3],
+            'works_at': bio_data[4]
+        }
+        return jsonify(bio)
+    else:
+        return "Bio data not found"
+    
 
 @app.route('/add-friend', methods=['POST'])
 def add_friend():
