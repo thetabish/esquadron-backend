@@ -198,19 +198,19 @@ def upload_profile_picture():
         filename = secure_filename(file.filename)
         file.save(os.path.join('assets', filename))
 
-        # Save the profile picture filename and user ID in the ProfilePictures table
+        # Check if the user already has a profile picture
         conn = sqlite3.connect('NewUsers.db')
         cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS ProfilePictures (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                profile_picture TEXT,
-                FOREIGN KEY (user_id) REFERENCES NewUsers (id)
-            )
-        ''')
-        cursor.execute('INSERT INTO ProfilePictures (user_id, profile_picture) VALUES (?, ?)', (user_id, filename))
-        #cursor.execute('DELETE FROM ProfilePictures')
+        cursor.execute('SELECT * FROM ProfilePictures WHERE user_id = ?', (user_id,))
+        existing_picture = cursor.fetchone()
+
+        if existing_picture:
+            # User already has a profile picture, update the existing record
+            cursor.execute('UPDATE ProfilePictures SET profile_picture = ? WHERE user_id = ?', (filename, user_id))
+        else:
+            # User doesn't have a profile picture, insert a new record
+            cursor.execute('INSERT INTO ProfilePictures (user_id, profile_picture) VALUES (?, ?)', (user_id, filename))
+
         conn.commit()
         conn.close()
 
@@ -218,8 +218,6 @@ def upload_profile_picture():
         return filename
 
     return 'Method Not Allowed'
-
-
 
 
 @app.route('/profile-picture/<user_id>')
