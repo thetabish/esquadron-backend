@@ -41,6 +41,49 @@ conn.commit()
 
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 
+@app.route('/update-admin-data', methods=['POST'])
+def update_admin_data():
+    data = request.json
+
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    # Rest of the code remains the same...
+    user_id = data['user_id']
+    lives_in = data['lives_in']
+    relationship_status = data['relationship_status']
+    works_at = data['works_at']
+    user_name = data['user_name']
+    email = data['email']
+    date_of_birth = data['date_of_birth']
+    country = data['country']
+    city = data['city']
+
+    # Update Bio.db
+    bio_db_query = "UPDATE Bio SET lives_in = ?, relationship_status = ?, works_at = ? WHERE user_id = ?"
+    bio_db_params = (lives_in, relationship_status, works_at, user_id)
+
+    # Update NewUsers.db
+    new_users_db_query = "UPDATE NewUsers SET user_name = ?, email = ?, date_of_birth = ?, country = ?, city = ? WHERE id = ?"
+    new_users_db_params = (user_name, email, date_of_birth, country, city, user_id)
+
+    try:
+
+        # Execute queries in NewUsers.db
+        cursor.execute(new_users_db_query, new_users_db_params)
+        # Execute queries in Bio.db
+        cursor.execute(bio_db_query, bio_db_params)
+        conn.commit()
+
+        
+
+        # Return success response
+        return {'status': 'success', 'message': 'User data updated successfully'}
+    except Exception as e:
+        # Return error response
+        return {'status': 'error', 'message': str(e)}
+
+
 @app.route('/get-all-users', methods=['GET'])
 def get_all_users():
     conn = sqlite3.connect('NewUsers.db')
