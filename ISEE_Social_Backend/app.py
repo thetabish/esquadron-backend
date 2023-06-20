@@ -41,6 +41,60 @@ conn.commit()
 
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 
+@app.route('/get-all-users', methods=['GET'])
+def get_all_users():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    # Retrieve data from NewUsers table
+    cursor.execute('SELECT * FROM NewUsers')
+    users = cursor.fetchall()
+
+    # List to store the combined user data
+    combined_data = []
+
+    # Iterate over each user
+    for user in users:
+        user_id = user[0]
+        email = user[1]
+        password = user[2]
+        date_of_birth = user[3]
+        country = user[4]
+        city = user[5]
+        user_name = user[6]
+
+        # Retrieve data from Bio table for the current user
+        cursor.execute('SELECT * FROM Bio WHERE user_id = ?', (user_id,))
+        bio_data = cursor.fetchone()
+        relationship_status = bio_data[2] if bio_data else ""
+        lives_in = bio_data[3] if bio_data else ""
+        works_at = bio_data[4] if bio_data else ""
+
+        # Retrieve data from ProfilePictures table for the current user
+        cursor.execute('SELECT profile_picture FROM ProfilePictures WHERE user_id = ?', (user_id,))
+        profile_picture_row = cursor.fetchone()
+        profile_picture = profile_picture_row[0] if profile_picture_row is not None else ""
+
+        # Create a dictionary to store the combined user data
+        user_data = {
+            'user_id': user_id,
+            'email': email,
+            'password': password,
+            'date_of_birth': date_of_birth,
+            'country': country,
+            'city': city,
+            'user_name': user_name,
+            'relationship_status': relationship_status,
+            'lives_in': lives_in,
+            'works_at': works_at,
+            'profile_picture': profile_picture
+        }
+
+        # Add the user data to the combined data list
+        combined_data.append(user_data)
+
+    # Return the combined data as JSON response
+    return jsonify(combined_data)
 @app.route('/bio', methods=['POST'])
 def update_bio():
     conn = sqlite3.connect('NewUsers.db')
@@ -201,6 +255,17 @@ def upload_profile_picture():
         # Check if the user already has a profile picture
         conn = sqlite3.connect('NewUsers.db')
         cursor = conn.cursor()
+
+        # Create the ProfilePictures table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ProfilePictures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                profile_picture TEXT,
+                FOREIGN KEY (user_id) REFERENCES NewUsers (id)
+            )
+        ''')
+
         cursor.execute('SELECT * FROM ProfilePictures WHERE user_id = ?', (user_id,))
         existing_picture = cursor.fetchone()
 
