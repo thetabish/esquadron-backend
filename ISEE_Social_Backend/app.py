@@ -42,6 +42,55 @@ conn.commit()
 
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 
+@app.route('/blocked-users', methods=['GET'])
+def get_blocked_users():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+     # SQL statement to create BlockedUsers table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS BlockedUsers (
+            user_id INT NOT NULL,
+            PRIMARY KEY (user_id)
+        )
+    ''')
+
+    cursor.execute('SELECT * FROM BlockedUsers')
+
+    blocked_users = cursor.fetchall()
+    blocked_users_list = []
+    blocked_users_list = [user[0] for user in blocked_users]
+
+    conn.close()
+
+    return jsonify({'blocked_users': blocked_users_list})
+
+@app.route('/update-blocked-users', methods=['POST'])
+def update_blocked_users():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+     # SQL statement to create BlockedUsers table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS BlockedUsers (
+            user_id INT NOT NULL,
+            PRIMARY KEY (user_id)
+        )
+    ''')
+    payload = request.get_json()
+    user_id = payload.get('user_id')
+    block = payload.get('block')
+
+    if block:
+        # Insert user_id into BlockedUsers table
+        cursor.execute('INSERT OR IGNORE INTO BlockedUsers (user_id) VALUES (?)', (user_id,))
+    else:
+        # Remove user_id from BlockedUsers table
+        cursor.execute('DELETE FROM BlockedUsers WHERE user_id = ?', (user_id,))
+
+    conn.commit()
+    conn.close()
+
+    return {'status': 'success'}
+
 
 @app.route('/get-posts', methods=['GET'])
 def get_posts():
@@ -138,9 +187,19 @@ def update_admin_data():
     country = data['country']
     city = data['city']
 
-    # Update Bio.db
-    bio_db_query = "UPDATE Bio SET lives_in = ?, relationship_status = ?, works_at = ? WHERE user_id = ?"
-    bio_db_params = (lives_in, relationship_status, works_at, user_id)
+    # Check if the user_id exists in the Bio table
+    bio_query = "SELECT * FROM Bio WHERE user_id = ?"
+    cursor.execute(bio_query, (user_id,))
+    row = cursor.fetchone()
+
+    if row:
+        # Update Bio.db
+        bio_db_query = "UPDATE Bio SET lives_in = ?, relationship_status = ?, works_at = ? WHERE user_id = ?"
+        bio_db_params = (lives_in, relationship_status, works_at, user_id)
+    else:
+        # Insert into Bio.db
+        bio_db_query = "INSERT INTO Bio (user_id, lives_in, relationship_status, works_at) VALUES (?, ?, ?, ?)"
+        bio_db_params = (user_id, lives_in, relationship_status, works_at)
 
     # Update NewUsers.db
     new_users_db_query = "UPDATE NewUsers SET user_name = ?, email = ?, date_of_birth = ?, country = ?, city = ? WHERE id = ?"
