@@ -41,6 +41,84 @@ conn.commit()
 
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 
+
+@app.route('/get-posts', methods=['GET'])
+def get_posts():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT Posts.user_id, NewUsers.user_name, Posts.image_path, Posts.text
+        FROM Posts
+        INNER JOIN NewUsers ON Posts.user_id = NewUsers.id
+        ORDER BY Posts.timestamp DESC
+    ''')
+
+    posts = cursor.fetchall()
+    post_data = []
+
+    for post in posts:
+        user_id, user_name, image_path, text = post
+
+        # Load the image file as bytes
+        image_data = None
+        if image_path:
+            with open(image_path, 'rb') as image_file:
+                image_data = image_file.read()
+
+        image_base64 = base64.b64encode(image_data).decode('utf-8') if image_data else None
+        
+        post_data.append({
+            'user_id': user_id,
+            'user_name': user_name,
+            'image_base64': image_base64,
+            'text': text
+        })
+
+    conn.close()
+
+    return jsonify({'posts': post_data})
+
+@app.route('/posts', methods=['POST'])
+def create_post():
+    # Assuming you have already established a connection and obtained the cursor
+
+    # Execute a SELECT query to retrieve records from the Posts table
+
+    user_id = request.form.get('userId')
+    image = request.files.get('image')
+    text = request.form.get('text')
+
+    print(f"User ID: {user_id}")
+    print(f"Text: {text}")
+
+    if image:
+        filename = secure_filename(image.filename)
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        image.save(image_path)
+        print("Image received and saved")
+    
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            text TEXT,
+            image_path TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Added timestamp column
+            FOREIGN KEY (user_id) REFERENCES NewUsers (id)
+        )
+    ''')
+
+    cursor.execute('INSERT INTO Posts (user_id, text, image_path) VALUES (?, ?, ?)',
+                   (user_id, text, image_path if image else None))
+
+    conn.commit()
+
+    return jsonify({'message': 'Post created successfully'})
+
 @app.route('/update-admin-data', methods=['POST'])
 def update_admin_data():
     data = request.json
