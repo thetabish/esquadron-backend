@@ -567,7 +567,7 @@ def signin():
             return json.dumps(user_data)
         else:
             # User does not exist or incorrect credentials
-            return "Invalid email or password"
+            return jsonify({'message': "Invalid email or password"})
 
     return "Method Not Allowed"
 
