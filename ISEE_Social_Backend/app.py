@@ -425,6 +425,43 @@ def add_friend():
 
     return "Method Not Allowed"
 
+@app.route('/get-followers', methods=['POST'])
+def get_followers():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        # Get the user_id from the request
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+
+        # Check if the user_id exists
+        if not user_id:
+            return json.dump({'error': 'Please provide a valid user_id'})
+
+        # Get the friends of the user from the Friends table
+        cursor.execute('''
+            SELECT NewUsers.id, NewUsers.user_name
+            FROM Friends
+            INNER JOIN NewUsers ON Friends.user_id = NewUsers.id
+            WHERE Friends.friend_id = ?
+        ''', (user_id,))
+        friends = cursor.fetchall()
+
+        # Convert the friends data into a list of dictionaries
+        friends_data = []
+        for friend in friends:
+            friend_data = {
+                'id': friend[0],
+                'user_name': friend[1]
+            }
+            friends_data.append(friend_data)
+
+        # Return the friends data as JSON response
+        return (friends_data)
+
+    return json.dump({'error': 'Method Not Allowed'})
 
 @app.route('/get-friends', methods=['POST'])
 def get_friends():
