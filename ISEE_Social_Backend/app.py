@@ -17,6 +17,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 conn = sqlite3.connect('NewUsers.db')
 cursor = conn.cursor()
 
+
+conn.commit()
 # Create a table to store user data
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS NewUsers (
@@ -38,6 +40,7 @@ cursor.execute('''
         relationship_status TEXT,
         lives_in TEXT,
         works_at TEXT,
+        education TEXT,  -- Add the 'education' field
         FOREIGN KEY (user_id) REFERENCES NewUsers (id)
     )
 ''')
@@ -340,6 +343,7 @@ def update_bio():
     rel = data.get('rel')
     loc = data.get('loc')
     work = data.get('work')
+    edu = data.get('edu')
     
     # Check if the user bio already exists
     cursor.execute('SELECT * FROM Bio WHERE user_id = ?', (user_id,))
@@ -347,12 +351,12 @@ def update_bio():
     
     if existing_bio:
         # Update the existing user bio
-        cursor.execute('UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ? WHERE user_id = ?', (rel, loc, work, user_id))
+        cursor.execute('UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ? WHERE user_id = ?', (rel, loc, work, edu, user_id))
         conn.commit()
         return "User bio updated successfully"
     else:
         # Insert a new user bio
-        cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at) VALUES (?, ?, ?, ?)', (user_id, rel, loc, work))
+        cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at, education) VALUES (?, ?, ?, ?, ?)', (user_id, rel, loc, work, edu))
         conn.commit()
         return "User bio added successfully"
 
@@ -378,7 +382,8 @@ def get_bio():
             'user_id': bio_data[1],
             'relationship_status': bio_data[2],
             'lives_in': bio_data[3],
-            'works_at': bio_data[4]
+            'works_at': bio_data[4],
+            'education': bio_data[4]
         }
         return jsonify(bio)
     else:
