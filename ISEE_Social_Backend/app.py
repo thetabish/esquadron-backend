@@ -42,10 +42,114 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        blocked_user_id INTEGER,
+        FOREIGN KEY (user_id) REFERENCES NewUsers (id),
+        FOREIGN KEY (blocked_user_id) REFERENCES NewUsers (id)
+    )
+''')
+conn.commit()
 conn.close()
 
 
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+
+@app.route('/block-user', methods=['POST'])
+def block_user():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+  
+    if request.method == 'POST':
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+        blocked_user_id = data.get('blocked_user_id')
+
+        if not user_id or not blocked_user_id:
+            return json.dumps({'message': 'Please provide user_id and blocked_user_id'})
+
+        # Check if the blocking relationship already exists
+        cursor.execute('SELECT * FROM Blocks WHERE user_id = ? AND blocked_user_id = ?', (user_id, blocked_user_id))
+        block_relationship = cursor.fetchone()
+
+        if block_relationship:
+            # Block relationship already exists, return an appropriate response
+            return json.dumps({'message': 'Block relationship already exists'})
+        else:
+            # Add the block relationship to the Blocks table
+            cursor.execute('INSERT INTO Blocks (user_id, blocked_user_id) VALUES (?, ?)', (user_id, blocked_user_id))
+            conn.commit()
+            return json.dumps({'message': 'User blocked successfully'})
+
+    return "Method Not Allowed"
+
+@app.route('/unblock-user', methods=['POST'])
+def unblock_user():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+  
+    if request.method == 'POST':
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+        blocked_user_id = data.get('blocked_user_id')
+
+        if not user_id or not blocked_user_id:
+            return json.dumps({'message': 'Please provide user_id and blocked_user_id'})
+
+        # Check if the blocking relationship exists
+        cursor.execute('SELECT * FROM Blocks WHERE user_id = ? AND blocked_user_id = ?', (user_id, blocked_user_id))
+        block_relationship = cursor.fetchone()
+
+        if block_relationship:
+            # Unblock the user by deleting the block relationship
+            cursor.execute('DELETE FROM Blocks WHERE user_id = ? AND blocked_user_id = ?', (user_id, blocked_user_id))
+            conn.commit()
+            return json.dumps({'message': 'User unblocked successfully'})
+        else:
+            # Block relationship does not exist
+            return json.dumps({'message': 'Block relationship does not exist'})
+
+    return "Method Not Allowed"
+
+@app.route('/get-blocked-users', methods=['POST'])
+def get_blocked_usersforusers():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return json.dumps({'error': 'Please provide a valid user_id'})
+
+        # Get the blocked users for the given user_id from the Blocks table
+        cursor.execute('''
+            SELECT NewUsers.id, NewUsers.user_name
+            FROM Blocks
+            INNER JOIN NewUsers ON Blocks.blocked_user_id = NewUsers.id
+            WHERE Blocks.user_id = ?
+        ''', (user_id,))
+        blocked_users = cursor.fetchall()
+
+        # Convert the blocked users data into a list of dictionaries
+        blocked_users_data = []
+        for user in blocked_users:
+            user_data = {
+                'id': user[0],
+                'user_name': user[1]
+            }
+            blocked_users_data.append(user_data)
+
+        # Return the blocked users data as JSON response
+        return json.dumps(blocked_users_data)
+
+    return json.dumps({'error': 'Method Not Allowed'})
 
 @app.route('/blocked-users', methods=['GET'])
 def get_blocked_users():
