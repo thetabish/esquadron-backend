@@ -17,6 +17,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 conn = sqlite3.connect('NewUsers.db')
 cursor = conn.cursor()
 
+
+conn.commit()
 # Create a table to store user data
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS NewUsers (
@@ -38,6 +40,7 @@ cursor.execute('''
         relationship_status TEXT,
         lives_in TEXT,
         works_at TEXT,
+        education TEXT,  -- Add the 'education' field
         FOREIGN KEY (user_id) REFERENCES NewUsers (id)
     )
 ''')
@@ -243,7 +246,6 @@ def get_user_posts(user_id):
 def get_posts(user_id):
     conn = sqlite3.connect('NewUsers.db')
     cursor = conn.cursor()
-
     cursor.execute('''
     SELECT Posts.user_id, NewUsers.user_name, Posts.image_path, Posts.text
     FROM Posts
@@ -379,6 +381,30 @@ def update_admin_data():
         # Return error response
         return {'status': 'error', 'message': str(e)}
 
+@app.route('/get-user-name/<int:viewedProfileId>', methods=['GET'])
+def get_user(viewedProfileId):
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    # Retrieve data for the specified viewedProfileId
+    cursor.execute('SELECT * FROM NewUsers WHERE id = ?', (viewedProfileId,))
+    user = cursor.fetchone()
+
+    if user is not None:
+        user_id = user[0]
+        user_name = user[6]
+
+        # Create a dictionary to store the user data
+        user_data = {
+            'user_id': user_id,
+            'user_name': user_name
+        }
+
+        # Return the user data as JSON response
+        return jsonify(user_data)
+    else:
+        # Return an error message if the user is not found
+        return jsonify({'error': 'User not found'})
 
 @app.route('/get-all-users', methods=['GET'])
 def get_all_users():
@@ -434,6 +460,8 @@ def get_all_users():
 
     # Return the combined data as JSON response
     return jsonify(combined_data)
+
+
 @app.route('/bio', methods=['POST'])
 def update_bio():
     conn = sqlite3.connect('NewUsers.db')
@@ -444,6 +472,7 @@ def update_bio():
     rel = data.get('rel')
     loc = data.get('loc')
     work = data.get('work')
+    edu = data.get('edu')
     
     # Check if the user bio already exists
     cursor.execute('SELECT * FROM Bio WHERE user_id = ?', (user_id,))
@@ -451,12 +480,12 @@ def update_bio():
     
     if existing_bio:
         # Update the existing user bio
-        cursor.execute('UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ? WHERE user_id = ?', (rel, loc, work, user_id))
+        cursor.execute('UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ? WHERE user_id = ?', (rel, loc, work, edu, user_id))
         conn.commit()
         return "User bio updated successfully"
     else:
         # Insert a new user bio
-        cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at) VALUES (?, ?, ?, ?)', (user_id, rel, loc, work))
+        cursor.execute('INSERT INTO Bio (user_id, relationship_status, lives_in, works_at, education) VALUES (?, ?, ?, ?, ?)', (user_id, rel, loc, work, edu))
         conn.commit()
         return "User bio added successfully"
 
@@ -482,7 +511,8 @@ def get_bio():
             'user_id': bio_data[1],
             'relationship_status': bio_data[2],
             'lives_in': bio_data[3],
-            'works_at': bio_data[4]
+            'works_at': bio_data[4],
+            'education': bio_data[4]
         }
         return jsonify(bio)
     else:
