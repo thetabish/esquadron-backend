@@ -142,7 +142,6 @@ def get_user_posts(user_id):
 def get_posts(user_id):
     conn = sqlite3.connect('NewUsers.db')
     cursor = conn.cursor()
-
     cursor.execute('''
     SELECT Posts.user_id, NewUsers.user_name, Posts.image_path, Posts.text
     FROM Posts
@@ -278,6 +277,30 @@ def update_admin_data():
         # Return error response
         return {'status': 'error', 'message': str(e)}
 
+@app.route('/get-user-name/<int:viewedProfileId>', methods=['GET'])
+def get_user(viewedProfileId):
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    # Retrieve data for the specified viewedProfileId
+    cursor.execute('SELECT * FROM NewUsers WHERE id = ?', (viewedProfileId,))
+    user = cursor.fetchone()
+
+    if user is not None:
+        user_id = user[0]
+        user_name = user[6]
+
+        # Create a dictionary to store the user data
+        user_data = {
+            'user_id': user_id,
+            'user_name': user_name
+        }
+
+        # Return the user data as JSON response
+        return jsonify(user_data)
+    else:
+        # Return an error message if the user is not found
+        return jsonify({'error': 'User not found'})
 
 @app.route('/get-all-users', methods=['GET'])
 def get_all_users():
@@ -333,6 +356,8 @@ def get_all_users():
 
     # Return the combined data as JSON response
     return jsonify(combined_data)
+
+
 @app.route('/bio', methods=['POST'])
 def update_bio():
     conn = sqlite3.connect('NewUsers.db')
