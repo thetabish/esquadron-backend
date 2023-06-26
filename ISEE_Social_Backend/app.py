@@ -512,11 +512,11 @@ def get_bio():
             'relationship_status': bio_data[2],
             'lives_in': bio_data[3],
             'works_at': bio_data[4],
-            'education': bio_data[4]
+            'education': bio_data[5]
         }
         return jsonify(bio)
     else:
-        return "Bio data not found"
+        return json.dumps({'message': 'not found'})
     
 
 @app.route('/add-friend', methods=['POST'])
@@ -728,7 +728,8 @@ def search_profiles():
     conn = sqlite3.connect('NewUsers.db')
     cursor = conn.cursor()
     query = request.args.get('query')  # Get the search query from the URL parameter
-
+    if query == "":
+        return []
     # Perform the search operation based on the query
     cursor.execute('SELECT * FROM NewUsers WHERE user_name LIKE ?', ('%' + query + '%',))
     profiles = cursor.fetchall()
