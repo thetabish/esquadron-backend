@@ -328,30 +328,20 @@ def get_posts(user_id):
     conn = sqlite3.connect("NewUsers.db")
     cursor = conn.cursor()
     cursor.execute(
-        """
+    """
     SELECT Posts.user_id, NewUsers.user_name, Posts.image_path, Posts.text
     FROM Posts
-    INNER JOIN (
-        SELECT friend_id
-        FROM Friends
-        WHERE user_id = ? -- Replace '?' with the desired user_id
-        UNION
-        SELECT user_id
-        FROM Friends
-        WHERE friend_id = ? -- Replace '?' with the desired user_id
-        UNION
-        SELECT ? -- Replace '?' with the desired user_id
-    ) AS FriendsFilter ON FriendsFilter.friend_id = Posts.user_id
     INNER JOIN NewUsers ON Posts.user_id = NewUsers.id
-    WHERE Posts.user_id IN (
-        SELECT friend_id
-        FROM Friends
-        WHERE user_id = ?
-    )
+    WHERE Posts.user_id = ?
+        OR Posts.user_id IN (
+            SELECT friend_id
+            FROM Friends
+            WHERE user_id = ?
+        )
     ORDER BY Posts.timestamp DESC
-""",
-        (user_id, user_id, user_id, user_id),
-    )
+    """,
+    (user_id, user_id),
+)
 
     posts = cursor.fetchall()
     post_data = []
