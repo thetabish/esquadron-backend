@@ -118,6 +118,43 @@ def unblock_user():
 
     return "Method Not Allowed"
 
+@app.route('/get-blocked-by-users', methods=['POST'])
+def get_blocked_by_usersforusers():
+    conn = sqlite3.connect('NewUsers.db')
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        payload = request.data.decode('utf-8')
+        data = json.loads(payload)
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return json.dumps({'error': 'Please provide a valid user_id'})
+
+        # Get the blocked users for the given user_id from the Blocks table
+        cursor.execute('''
+            SELECT NewUsers.id, NewUsers.user_name
+            FROM Blocks
+            INNER JOIN NewUsers ON Blocks.user_id = NewUsers.id
+            WHERE Blocks.blocked_user_id = ?
+        ''', (user_id,))
+        blocked_users = cursor.fetchall()
+
+        # Convert the blocked users data into a list of dictionaries
+        blocked_users_data = []
+        for user in blocked_users:
+            user_data = {
+                'id': user[0],
+                'user_name': user[1]
+            }
+            blocked_users_data.append(user_data)
+
+        # Return the blocked users data as JSON response
+        return json.dumps(blocked_users_data)
+
+    return json.dumps({'error': 'Method Not Allowed'})
+
+
 @app.route('/get-blocked-users', methods=['POST'])
 def get_blocked_usersforusers():
     conn = sqlite3.connect('NewUsers.db')
