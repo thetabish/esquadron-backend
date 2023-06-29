@@ -13,6 +13,7 @@ import json
 from werkzeug.utils import secure_filename
 import os
 import base64, datetime
+import bcrypt 
 
 app = Flask(__name__)
 CORS(app)
@@ -901,26 +902,32 @@ def signin():
         password = data.get("password")
 
         # Check if the user exists in the database
-        cursor.execute(
-            "SELECT * FROM NewUsers WHERE email = ? AND password = ?", (email, password)
-        )
+        cursor.execute("SELECT * FROM NewUsers WHERE email = ?", (email,))
         user = cursor.fetchone()
 
         if user:
-            # User exists, return "ok"
-            user_data = {
-                "id": user[0],
-                "email": user[1],
-                "password": user[2],
-                "date_of_birth": user[3],
-                "country": user[4],
-                "city": user[5],
-                "user_name": user[6],
-            }
-            print(user_data)
-            return json.dumps(user_data)
+            # User exists, verify the password
+            stored_password = user[2]  # Get the stored hashed password from the database
+
+            if bcrypt.checkpw(password.encode("utf-8"), stored_password.encode("utf-8")):
+                # Password is correct
+                user_data = {
+                    "id": user[0],
+                    "email": user[1],
+                    "password": user[2],
+                    "date_of_birth": user[3],
+                    "country": user[4],
+                    "city": user[5],
+                    "user_name": user[6],
+                }
+                print(user_data)
+                return json.dumps(user_data)
+            else:
+                # Incorrect password
+                return jsonify({"message": "Invalid email or password"})
+
         else:
-            # User does not exist or incorrect credentials
+            # User does not exist
             return jsonify({"message": "Invalid email or password"})
 
     return "Method Not Allowed"
@@ -952,21 +959,22 @@ def signup():
         ):
             return "Please fill in all the required fields"
 
+        # Hash the password
+        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
         # Save the user data to the database
         cursor.execute(
             "INSERT INTO NewUsers (email, password, date_of_birth, country, city, user_name) VALUES (?, ?, ?, ?, ?, ?)",
-            (email, password, date_of_birth, country, city, user_name),
+            (email, hashed_password.decode("utf-8"), date_of_birth, country, city, user_name),
         )
         conn.commit()
+
         if cursor.lastrowid:
-            cursor.execute("SELECT * FROM NewUsers")
-            rows = cursor.fetchall()
-            print("Data inserted successfully. User ID:", cursor.lastrowid)
             # Data inserted successfully
             user_id = cursor.lastrowid
             cursor.execute(
                 "SELECT * FROM NewUsers WHERE email = ? AND password = ?",
-                (email, password),
+                (email, hashed_password.decode("utf-8")),
             )
             user = cursor.fetchone()
             user_data = {
@@ -989,6 +997,7 @@ def signup():
 
     # Render the signup page template for GET requests
     return render_template("signup.html")
+
 
 
 if __name__ == "__main__":
