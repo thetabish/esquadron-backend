@@ -567,6 +567,7 @@ def update_bio():
     data = json.loads(payload)
     user_id = data.get("id")
     rel = data.get("rel")
+    loc = data.get("loc")
     work = data.get("work")
     edu = data.get("edu")
     gender = data.get("gender")
@@ -574,33 +575,16 @@ def update_bio():
     interested_in_dating = data.get("interestedInDating")
     sexual_orientation = data.get("sexualOrientation")
 
-    # Fetch city and country from NewUsers table
-    cursor.execute("SELECT city, country FROM NewUsers WHERE user_id = ?", (user_id,))
-    user_data = cursor.fetchone()
-    if user_data:
-        city, country = user_data
-        loc = f"{city}, {country}"
-    else:
-        loc = None
-
     # Check if the user bio already exists
     cursor.execute("SELECT * FROM Bio WHERE user_id = ?", (user_id,))
     existing_bio = cursor.fetchone()
 
     if existing_bio:
         # Update the existing user bio
-        if loc is not None:
-            # If location is provided, update it
-            cursor.execute(
-                "UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ?, gender = ?, marital_status = ?, interested_in_dating = ?, sexual_orientation = ? WHERE user_id = ?",
-                (rel, loc, work, edu, gender, marital_status, interested_in_dating, sexual_orientation, user_id),
-            )
-        else:
-            # If location is not provided, update other fields only
-            cursor.execute(
-                "UPDATE Bio SET relationship_status = ?, works_at = ?, education = ?, gender = ?, marital_status = ?, interested_in_dating = ?, sexual_orientation = ? WHERE user_id = ?",
-                (rel, work, edu, gender, marital_status, interested_in_dating, sexual_orientation, user_id),
-            )
+        cursor.execute(
+            "UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ?, gender = ?, marital_status = ?, interested_in_dating = ?, sexual_orientation = ? WHERE user_id = ?",
+            (rel, loc, work, edu, gender, marital_status, interested_in_dating, sexual_orientation, user_id),
+        )
         conn.commit()
         return "User bio updated successfully"
     else:
