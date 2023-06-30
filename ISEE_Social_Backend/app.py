@@ -13,7 +13,6 @@ import json
 from werkzeug.utils import secure_filename
 import os
 import base64, datetime
-import bcrypt 
 
 app = Flask(__name__)
 CORS(app)
@@ -38,10 +37,13 @@ cursor.execute(
         date_of_birth TEXT,
         country TEXT,
         city TEXT,
-        user_name TEXT
+        user_name TEXT,
+        question TEXT,
+        answer TEXT
     )
-"""
+    """
 )
+
 conn.commit()
 
 cursor.execute(
@@ -52,7 +54,11 @@ cursor.execute(
         relationship_status TEXT,
         lives_in TEXT,
         works_at TEXT,
-        education TEXT,  -- Add the 'education' field
+        education TEXT,
+        gender TEXT,  -- Add the 'gender' field
+        marital_status TEXT,  -- Add the 'marital_status' field
+        interested_in_dating TEXT,  -- Add the 'interested_in_dating' field
+        sexual_orientation TEXT,  -- Add the 'sexual_orientation' field
         FOREIGN KEY (user_id) REFERENCES NewUsers (id)
     )
 """
@@ -563,6 +569,10 @@ def update_bio():
     loc = data.get("loc")
     work = data.get("work")
     edu = data.get("edu")
+    gender = data.get("gender")
+    marital_status = data.get("maritalStatus")
+    interested_in_dating = data.get("interestedInDating")
+    sexual_orientation = data.get("sexualOrientation")
 
     # Check if the user bio already exists
     cursor.execute("SELECT * FROM Bio WHERE user_id = ?", (user_id,))
@@ -571,16 +581,16 @@ def update_bio():
     if existing_bio:
         # Update the existing user bio
         cursor.execute(
-            "UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ? WHERE user_id = ?",
-            (rel, loc, work, edu, user_id),
+            "UPDATE Bio SET relationship_status = ?, lives_in = ?, works_at = ?, education = ?, gender = ?, marital_status = ?, interested_in_dating = ?, sexual_orientation = ? WHERE user_id = ?",
+            (rel, loc, work, edu, gender, marital_status, interested_in_dating, sexual_orientation, user_id),
         )
         conn.commit()
         return "User bio updated successfully"
     else:
         # Insert a new user bio
         cursor.execute(
-            "INSERT INTO Bio (user_id, relationship_status, lives_in, works_at, education) VALUES (?, ?, ?, ?, ?)",
-            (user_id, rel, loc, work, edu),
+            "INSERT INTO Bio (user_id, relationship_status, lives_in, works_at, education, gender, marital_status, interested_in_dating, sexual_orientation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, rel, loc, work, edu, gender, marital_status, interested_in_dating, sexual_orientation),
         )
         conn.commit()
         return "User bio added successfully"
@@ -610,11 +620,14 @@ def get_bio():
             "lives_in": bio_data[3],
             "works_at": bio_data[4],
             "education": bio_data[5],
+            "gender": bio_data[6],
+            "marital_status": bio_data[7],
+            "interested_in_dating": bio_data[8],
+            "sexual_orientation": bio_data[9],
         }
         return jsonify(bio)
     else:
         return json.dumps({"message": "not found"})
-
 
 @app.route("/add-friend", methods=["POST"])
 def add_friend():
@@ -890,6 +903,104 @@ def get_user_names():
     return "Method Not Allowed"
 
 
+@app.route("/check-email", methods=["POST"])
+def check_email():
+    if request.method == "POST":
+        # Get the email from the request
+        payload = request.data.decode("utf-8")
+        data = json.loads(payload)
+        email = data.get("email")
+
+        # Create a new database connection and cursor
+        conn = sqlite3.connect("NewUsers.db")
+        cursor = conn.cursor()
+
+        # Check if the email exists in the database
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM NewUsers WHERE email = ?)", (email,))
+        exists = cursor.fetchone()[0] == 1
+
+        if exists:
+            # Get the security question for the user
+            cursor.execute("SELECT question FROM NewUsers WHERE email = ?", (email,))
+            question = cursor.fetchone()[0]
+
+            # Close the database connection and cursor
+            cursor.close()
+            conn.close()
+
+            # Return the response with the question
+            return jsonify({"exists": exists, "question": question})
+        else:
+            # Close the database connection and cursor
+            cursor.close()
+            conn.close()
+
+            return jsonify({"exists": exists})
+
+    return "Method Not Allowed"
+
+@app.route("/validate-answer", methods=["POST"])
+def validate_answer():
+    if request.method == "POST":
+        # Get the answer and email from the request
+        payload = request.data.decode("utf-8")
+        data = json.loads(payload)
+        answer = data.get("answer")
+        email = data.get("email")
+
+        # Create a new database connection and cursor
+        conn = sqlite3.connect("NewUsers.db")
+        cursor = conn.cursor()
+
+        # Check if the email exists in the database
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM NewUsers WHERE email = ?)", (email,))
+        exists = cursor.fetchone()[0] == 1
+
+        if exists:
+            # Get the actual answer from the database for comparison
+            cursor.execute("SELECT answer FROM NewUsers WHERE email = ?", (email,))
+            actual_answer = cursor.fetchone()[0]
+
+            # Compare the provided answer with the actual answer
+            if answer == actual_answer:
+                # Close the database connection and cursor
+                cursor.close()
+                conn.close()
+                print("valid answer")
+                return jsonify({"valid": True})
+        
+        # Close the database connection and cursor
+        cursor.close()
+        conn.close()
+
+    return jsonify({"valid": False})
+
+@app.route("/update-password", methods=["POST"])
+def update_password():
+    if request.method == "POST":
+        # Get the email and new password from the request
+        payload = request.data.decode("utf-8")
+        data = json.loads(payload)
+        email = data.get("email")
+        new_password = data.get("password")
+
+        # Create a new database connection and cursor
+        conn = sqlite3.connect("NewUsers.db")
+        cursor = conn.cursor()
+
+        # Update the password for the user
+        cursor.execute("UPDATE NewUsers SET password = ? WHERE email = ?", (new_password, email))
+        conn.commit()
+
+        # Close the database connection and cursor
+        cursor.close()
+        conn.close()
+
+        # Return a success response
+        return jsonify({"success": True})
+
+    return "Method Not Allowed"
+
 @app.route("/signin", methods=["POST"])
 def signin():
     conn = sqlite3.connect("NewUsers.db")
@@ -902,32 +1013,26 @@ def signin():
         password = data.get("password")
 
         # Check if the user exists in the database
-        cursor.execute("SELECT * FROM NewUsers WHERE email = ?", (email,))
+        cursor.execute(
+            "SELECT * FROM NewUsers WHERE email = ? AND password = ?", (email, password)
+        )
         user = cursor.fetchone()
 
         if user:
-            # User exists, verify the password
-            stored_password = user[2]  # Get the stored hashed password from the database
-
-            if bcrypt.checkpw(password.encode("utf-8"), stored_password.encode("utf-8")):
-                # Password is correct
-                user_data = {
-                    "id": user[0],
-                    "email": user[1],
-                    "password": user[2],
-                    "date_of_birth": user[3],
-                    "country": user[4],
-                    "city": user[5],
-                    "user_name": user[6],
-                }
-                print(user_data)
-                return json.dumps(user_data)
-            else:
-                # Incorrect password
-                return jsonify({"message": "Invalid email or password"})
-
+            # User exists, return "ok"
+            user_data = {
+                "id": user[0],
+                "email": user[1],
+                "password": user[2],
+                "date_of_birth": user[3],
+                "country": user[4],
+                "city": user[5],
+                "user_name": user[6],
+            }
+            print(user_data)
+            return json.dumps(user_data)
         else:
-            # User does not exist
+            # User does not exist or incorrect credentials
             return jsonify({"message": "Invalid email or password"})
 
     return "Method Not Allowed"
@@ -947,6 +1052,8 @@ def signup():
         country = data.get("country")
         city = data.get("city")
         user_name = data.get("userName")
+        question = data.get("question")
+        answer = data.get("answer")
 
         # Perform validation (add your validation logic here)
         if (
@@ -956,25 +1063,26 @@ def signup():
             or not country
             or not city
             or not user_name
+            or not question
+            or not answer
         ):
             return "Please fill in all the required fields"
 
-        # Hash the password
-        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-
         # Save the user data to the database
         cursor.execute(
-            "INSERT INTO NewUsers (email, password, date_of_birth, country, city, user_name) VALUES (?, ?, ?, ?, ?, ?)",
-            (email, hashed_password.decode("utf-8"), date_of_birth, country, city, user_name),
+            "INSERT INTO NewUsers (email, password, date_of_birth, country, city, user_name, question, answer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (email, password, date_of_birth, country, city, user_name, question, answer),
         )
         conn.commit()
-
         if cursor.lastrowid:
+            cursor.execute("SELECT * FROM NewUsers")
+            rows = cursor.fetchall()
+            print("Data inserted successfully. User ID:", cursor.lastrowid)
             # Data inserted successfully
             user_id = cursor.lastrowid
             cursor.execute(
                 "SELECT * FROM NewUsers WHERE email = ? AND password = ?",
-                (email, hashed_password.decode("utf-8")),
+                (email, password),
             )
             user = cursor.fetchone()
             user_data = {
@@ -985,6 +1093,8 @@ def signup():
                 "country": user[4],
                 "city": user[5],
                 "user_name": user[6],
+                "question": user[7],
+                "answer": user[8],
             }
             print(user_data)
             return json.dumps(user_data)
