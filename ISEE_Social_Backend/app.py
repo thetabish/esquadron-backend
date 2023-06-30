@@ -13,6 +13,7 @@ import json
 from werkzeug.utils import secure_filename
 import os
 import base64, datetime
+import bcrypt 
 
 app = Flask(__name__)
 CORS(app)
@@ -989,7 +990,10 @@ def update_password():
         cursor = conn.cursor()
 
         # Update the password for the user
-        cursor.execute("UPDATE NewUsers SET password = ? WHERE email = ?", (new_password, email))
+        hashed_password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+
+        # Save the user data to the database
+        cursor.execute("UPDATE NewUsers SET password = ? WHERE email = ?", (hashed_password.decode("utf-8"), email))
         conn.commit()
 
         # Close the database connection and cursor
@@ -1012,28 +1016,30 @@ def signin():
         email = data.get("email")
         password = data.get("password")
 
-        # Check if the user exists in the database
-        cursor.execute(
-            "SELECT * FROM NewUsers WHERE email = ? AND password = ?", (email, password)
-        )
+        cursor.execute("SELECT * FROM NewUsers WHERE email = ?", (email,))
         user = cursor.fetchone()
 
         if user:
-            # User exists, return "ok"
-            user_data = {
-                "id": user[0],
-                "email": user[1],
-                "password": user[2],
-                "date_of_birth": user[3],
-                "country": user[4],
-                "city": user[5],
-                "user_name": user[6],
-            }
-            print(user_data)
-            return json.dumps(user_data)
-        else:
-            # User does not exist or incorrect credentials
-            return jsonify({"message": "Invalid email or password"})
+            # User exists, verify the password
+            stored_password = user[2]  # Get the stored hashed password from the database
+
+            if bcrypt.checkpw(password.encode("utf-8"), stored_password.encode("utf-8")):
+                # Password is correct
+                user_data = {
+                    "id": user[0],
+                    "email": user[1],
+                    "password": user[2],
+                    "date_of_birth": user[3],
+                    "country": user[4],
+                    "city": user[5],
+                    "user_name": user[6],
+                }
+                print(user_data)
+                return json.dumps(user_data)
+            else:
+                # Incorrect password
+                return jsonify({"message": "Invalid email or password"})
+
 
     return "Method Not Allowed"
 
@@ -1068,10 +1074,14 @@ def signup():
         ):
             return "Please fill in all the required fields"
 
+         # Hash the password
+        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
         # Save the user data to the database
         cursor.execute(
             "INSERT INTO NewUsers (email, password, date_of_birth, country, city, user_name, question, answer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (email, password, date_of_birth, country, city, user_name, question, answer),
+            (email, hashed_password.decode("utf-8"), date_of_birth, country, city, user_name, question, answer),
+
         )
         conn.commit()
         if cursor.lastrowid:
@@ -1082,7 +1092,7 @@ def signup():
             user_id = cursor.lastrowid
             cursor.execute(
                 "SELECT * FROM NewUsers WHERE email = ? AND password = ?",
-                (email, password),
+                (email, hashed_password.decode("utf-8")),
             )
             user = cursor.fetchone()
             user_data = {
@@ -1098,10 +1108,6 @@ def signup():
             }
             print(user_data)
             return json.dumps(user_data)
-
-            # Redirect to a success page or login page
-            # In this case, return the user_id as a JSON response
-            return json.dumps({"user_id": user_id})
         else:
             print("Failed to insert data into the database.")
 
